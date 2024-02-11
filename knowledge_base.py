@@ -1,18 +1,22 @@
-import openai
-from dotenv import load_dotenv, find_dotenv
 import os
-from supabase import create_client, Client
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter
-from langchain.vectorstores import FAISS, SupabaseVectorStore
-from langchain.document_loaders import TextLoader, PyPDFLoader
+import pickle
+
+import openai
 import requests
 from bs4 import BeautifulSoup
-import pickle
+from dotenv import find_dotenv, load_dotenv
 from langchain import OpenAI
 from langchain.chains import VectorDBQAWithSourcesChain
+from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.embeddings.base import Embeddings
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.text_splitter import (
+    CharacterTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
+from langchain.vectorstores import FAISS, SupabaseVectorStore
 from sentence_transformers import SentenceTransformer
+from supabase import Client, create_client
 from termcolor import colored
 
 
@@ -37,6 +41,7 @@ def load_documents(filenames):
     )
     docs = []
     for filename in filenames:
+        # TODO: Add support for python or other files
         if filename.endswith(".pdf"):
             loader = PyPDFLoader(filename)
         else:
@@ -56,7 +61,7 @@ def load_urls(urls):
         soup = BeautifulSoup(html, features="html.parser")
         text = soup.get_text()
         lines = (line.strip() for line in text.splitlines())
-        page_content = '\n'.join(line for line in lines if line)
+        page_content = "\n".join(line for line in lines if line)
 
         splits = text_splitter.split_text(page_content)
         docs.extend(splits)
@@ -77,7 +82,7 @@ def load_code_chunks(chunks, filepath):
 
 
 def local_vdb(knowledge, vdb_path=None):
-    embedding_type = os.environ.get('EMBEDDING_TYPE', "local")
+    embedding_type = os.environ.get("EMBEDDING_TYPE", "local")
     if embedding_type == "local":
         embedding = LocalHuggingFaceEmbeddings()
     else:
@@ -103,9 +108,13 @@ def supabase_vdb(knowledge):
     supabase_key = os.environ.get("SUPABASE_KEY")
     supabase: Client = create_client(supabase_url, supabase_key)
 
-    vector_store = SupabaseVectorStore(client=supabase, embedding=OpenAIEmbeddings(), table_name="documents")
+    vector_store = SupabaseVectorStore(
+        client=supabase, embedding=OpenAIEmbeddings(), table_name="documents"
+    )
     vector_store.add_documents(knowledge["known_docs"])
-    vector_store.add_texts(knowledge["known_text"]["pages"], metadatas=knowledge["known_text"]["metadatas"])
+    vector_store.add_texts(
+        knowledge["known_text"]["pages"], metadatas=knowledge["known_text"]["metadatas"]
+    )
 
     return vector_store
 
@@ -121,7 +130,10 @@ if __name__ == "__main__":
     known_docs = load_documents(files)
     known_pages, metadatas = load_urls(urls)
 
-    knowledge_base = {"known_docs": known_docs, "known_text": {"pages": known_pages, "metadatas": metadatas}}
+    knowledge_base = {
+        "known_docs": known_docs,
+        "known_text": {"pages": known_pages, "metadatas": metadatas},
+    }
 
     faiss_store = local_vdb(knowledge_base)
     matched_docs = faiss_store.similarity_search(query)
@@ -133,10 +145,14 @@ if __name__ == "__main__":
     for doc in matched_docs:
         print("------------------------\n", doc)
 
-    chain = VectorDBQAWithSourcesChain.from_llm(llm=OpenAI(temperature=0), vectorstore=faiss_store)
+    chain = VectorDBQAWithSourcesChain.from_llm(
+        llm=OpenAI(temperature=0), vectorstore=faiss_store
+    )
     result = chain({"question": query})
     print("FAISS result", result)
 
-    chain = VectorDBQAWithSourcesChain.from_llm(llm=OpenAI(temperature=0), vectorstore=supabase_store)
+    chain = VectorDBQAWithSourcesChain.from_llm(
+        llm=OpenAI(temperature=0), vectorstore=supabase_store
+    )
     result = chain({"question": query})
     print("Supabase result", result)

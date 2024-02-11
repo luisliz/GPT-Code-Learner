@@ -1,14 +1,17 @@
-import os
 import json
-import openai
-from termcolor import colored
-from dotenv import load_dotenv, find_dotenv
-from knowledge_base import load_documents, load_code_chunks, supabase_vdb, local_vdb, load_local_vdb
+import os
+import subprocess
 from collections import deque
 from pathlib import Path
-import util
-import subprocess
+
 import gradio as gr
+import openai
+from dotenv import find_dotenv, load_dotenv
+from termcolor import colored
+
+import util
+from knowledge_base import (load_code_chunks, load_documents, load_local_vdb,
+                            local_vdb, supabase_vdb)
 
 
 def clone_repo(git_url, progress=gr.Progress(), code_repo_path="./code_repo"):
@@ -18,7 +21,8 @@ def clone_repo(git_url, progress=gr.Progress(), code_repo_path="./code_repo"):
     if not os.path.exists(code_repo_path):
         os.makedirs(code_repo_path)
     try:
-        subprocess.check_call(['git', 'clone', git_url], cwd=code_repo_path)
+        # TODO: Use for git checkout
+        subprocess.check_call(["git", "clone", git_url], cwd=code_repo_path)
         print(f"Successfully cloned {git_url} into {code_repo_path}")
     except subprocess.CalledProcessError as e:
         print(f"Error: {e.output}")
@@ -31,7 +35,11 @@ def clone_repo(git_url, progress=gr.Progress(), code_repo_path="./code_repo"):
     print(progress(0.4, desc="Parsing repo structure..."))
     repo_structure = get_repo_structure(code_repo_path)
     if repo_structure is not None:
-        repo_structure = """The repo structure is as follows: """ + get_repo_structure(code_repo_path) + "\n\n"
+        repo_structure = (
+            """The repo structure is as follows: """
+            + get_repo_structure(code_repo_path)
+            + "\n\n"
+        )
 
     return readme_info + repo_structure
 
@@ -46,6 +54,7 @@ def generate_knowledge_from_repo(dir_path, ignore_list):
             filepath = os.path.join(root, file)
             try:
                 # Using a more general way for code file parsing
+                # TODO: replace with a more specific way for each language
                 knowledge["known_docs"].extend(load_documents([filepath]))
 
             except Exception as e:
@@ -69,7 +78,7 @@ def find_repo_folder(directory):
 def find_readme(repo_folder):
     # Search for the README file within the found folder
     for filename in os.listdir(repo_folder):
-        if filename.lower().startswith('readme'):
+        if filename.lower().startswith("readme"):
             readme_path = os.path.join(repo_folder, filename)
             print("README found in folder:", repo_folder)
             return readme_path
@@ -90,7 +99,7 @@ def summarize_readme(readme_path):
             Please also mention the framework used in the code repository.
             """
         readme_content = open(readme_path, "r").read()
-        user_prompt = f'Here is the README content: {readme_content}'
+        user_prompt = f"Here is the README content: {readme_content}"
         return util.get_chat_response(system_prompt, user_prompt)
 
 
@@ -145,7 +154,11 @@ def get_repo_structure(code_repo_path="./code_repo"):
 
 
 def get_repo_names(dir_path):
-    folder_names = [name for name in os.listdir(dir_path) if os.path.isdir(os.path.join(dir_path, name))]
+    folder_names = [
+        name
+        for name in os.listdir(dir_path)
+        if os.path.isdir(os.path.join(dir_path, name))
+    ]
     concatenated_names = "-".join(folder_names)
     return concatenated_names
 
@@ -158,8 +171,7 @@ def generate_or_load_knowledge_from_repo(dir_path="./code_repo"):
         vdb = load_local_vdb(vdb_path)
     else:
         print(colored("Generating VDB from repo...", "green"))
-        ignore_list = ['.git', 'node_modules', '__pycache__', '.idea',
-                       '.vscode']
+        ignore_list = [".git", "node_modules", "__pycache__", ".idea", ".vscode"]
         knowledge = generate_knowledge_from_repo(dir_path, ignore_list)
         vdb = local_vdb(knowledge, vdb_path=vdb_path)
     print(colored("VDB generated!", "green"))
@@ -176,7 +188,7 @@ def get_repo_context(query, vdb):
     return output
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     code_repo_path = "./code_repo"
     load_dotenv(find_dotenv())
     openai.api_key = os.environ.get("OPENAI_API_KEY", "null")

@@ -1,12 +1,14 @@
-import gradio as gr
 import json
-import requests
 import os
-from termcolor import colored
-from repo_parser import clone_repo, generate_or_load_knowledge_from_repo
-import tool_planner
 
-llm_type = os.environ.get('LLM_TYPE', "local")
+import gradio as gr
+import requests
+from termcolor import colored
+
+import tool_planner
+from repo_parser import clone_repo, generate_or_load_knowledge_from_repo
+
+llm_type = os.environ.get("LLM_TYPE", "local")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "null")
 if llm_type == "local":
     API_URL = "http://localhost:8080/v1/chat/completions"
@@ -28,7 +30,9 @@ init_system_prompt = """Now you are an expert programmer and teacher of a code r
 system_prompt = init_system_prompt
 
 
-def generate_response(system_msg, inputs, top_p, temperature, chat_counter, chatbot=[], history=[]):
+def generate_response(
+    system_msg, inputs, top_p, temperature, chat_counter, chatbot=[], history=[]
+):
     orig_inputs = inputs
 
     # Inputs are pre-processed with extra tools
@@ -45,15 +49,17 @@ def generate_response(system_msg, inputs, top_p, temperature, chat_counter, chat
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
     }
 
-    if system_msg.strip() == '':
+    if system_msg.strip() == "":
         initial_message = [{"role": "user", "content": f"{inputs}"}]
         multi_turn_message = []
     else:
-        initial_message = [{"role": "system", "content": system_msg},
-                           {"role": "user", "content": f"{inputs}"}]
+        initial_message = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": f"{inputs}"},
+        ]
         multi_turn_message = [{"role": "system", "content": init_system_prompt}]
 
     if chat_counter == 0:
@@ -84,7 +90,8 @@ def generate_response(system_msg, inputs, top_p, temperature, chat_counter, chat
             "n": 1,
             "stream": True,
             "presence_penalty": 0,
-            "frequency_penalty": 0, }
+            "frequency_penalty": 0,
+        }
 
     chat_counter += 1
     history.append(orig_inputs)
@@ -112,20 +119,35 @@ def generate_response(system_msg, inputs, top_p, temperature, chat_counter, chat
 
             # Check if the chatbot is done generating the response
             try:
-                if len(chunk) > 12 and "finish_reason" in json.loads(chunk[6:])['choices'][0]:
-                    response_complete = json.loads(chunk[6:])['choices'][0].get("finish_reason", None) == "stop"
+                if (
+                    len(chunk) > 12
+                    and "finish_reason" in json.loads(chunk[6:])["choices"][0]
+                ):
+                    response_complete = (
+                        json.loads(chunk[6:])["choices"][0].get("finish_reason", None)
+                        == "stop"
+                    )
             except:
                 print("Error in response_complete check")
                 pass
 
             try:
-                if len(chunk) > 12 and "content" in json.loads(chunk[6:])['choices'][0]['delta']:
-                    partial_words = partial_words + json.loads(chunk[6:])['choices'][0]["delta"]["content"]
+                if (
+                    len(chunk) > 12
+                    and "content" in json.loads(chunk[6:])["choices"][0]["delta"]
+                ):
+                    partial_words = (
+                        partial_words
+                        + json.loads(chunk[6:])["choices"][0]["delta"]["content"]
+                    )
                     if token_counter == 0:
                         history.append(" " + partial_words)
                     else:
                         history[-1] = partial_words
-                    chat = [(history[i], history[i + 1]) for i in range(0, len(history) - 1, 2)]
+                    chat = [
+                        (history[i], history[i + 1])
+                        for i in range(0, len(history) - 1, 2)
+                    ]
                     token_counter += 1
                     yield chat, history, chat_counter, response
             except:
@@ -134,7 +156,7 @@ def generate_response(system_msg, inputs, top_p, temperature, chat_counter, chat
 
 
 def reset_textbox():
-    return gr.update(value='')
+    return gr.update(value="")
 
 
 def set_visible_false():
@@ -157,6 +179,7 @@ def analyze_repo(repo_url, progress=gr.Progress()):
     else:
         return init_system_prompt, "Analysis failed"
 
+
 def main():
     title = """<h1 align="center">GPT-Code-Learner</h1>"""
 
@@ -165,9 +188,9 @@ def main():
     theme = gr.themes.Soft(text_size=gr.themes.sizes.text_md)
 
     with gr.Blocks(
-            css="""#col_container { margin-left: auto; margin-right: auto;} #chatbot {height: 520px; overflow: auto;}""",
-            theme=theme,
-            title="GPT-Code-Learner",
+        css="""#col_container { margin-left: auto; margin-right: auto;} #chatbot {height: 920px; overflow: auto;}""",
+        theme=theme,
+        title="GPT-Code-Learner",
     ) as demo:
         gr.HTML(title)
 
@@ -176,44 +199,40 @@ def main():
                 system_msg = gr.Textbox(
                     label="Instruct the AI Assistant to set its beaviour",
                     info=system_msg_info,
-                    value=system_prompt
+                    value=system_prompt,
                 )
                 accordion_msg = gr.HTML(
-                    value="Refresh the app to reset system message",
-                    visible=False
+                    value="Refresh the app to reset system message", visible=False
                 )
             # Add text box for the repo link with submit button
             with gr.Row():
                 with gr.Column(scale=6):
                     repo_url = gr.Textbox(
-                        placeholder="Repo Link",
-                        lines=1,
-                        label="Repo Link"
+                        placeholder="Repo Link", lines=1, label="Repo Link"
                     )
                 with gr.Column(scale=2):
-                    repo_link_btn = gr.Button("Analyze Code Repo").style(full_width=True)
+                    repo_link_btn = gr.Button("Analyze Code Repo")
                 with gr.Column(scale=2):
                     analyze_progress = gr.Textbox(label="Status")
 
-            repo_link_btn.click(analyze_repo, [repo_url], [system_msg, analyze_progress])
+            repo_link_btn.click(
+                analyze_repo, [repo_url], [system_msg, analyze_progress]
+            )
 
             with gr.Row():
-                with gr.Column(scale=10):
-                    chatbot = gr.Chatbot(
-                        label='GPT-Code-Learner',
-                        elem_id="chatbot"
-                    )
+                with gr.Column(scale=30):
+                    chatbot = gr.Chatbot(label="GPT-Code-Learner", elem_id="chatbot")
 
             state = gr.State([])
             with gr.Row():
-                with gr.Column(scale=8):
+                with gr.Column(scale=10):
                     inputs = gr.Textbox(
                         placeholder="What questions do you have for the repo?",
                         lines=1,
-                        label="Type an input and press Enter"
+                        label="Type an input and press Enter",
                     )
                 with gr.Column(scale=2):
-                    b1 = gr.Button().style(full_width=True)
+                    b1 = gr.Button()
 
             with gr.Accordion(label="Examples", open=True):
                 gr.Examples(
@@ -221,19 +240,38 @@ def main():
                         ["What is the usage of this repo?"],
                         ["Which function launches the application in the repo?"],
                     ],
-                    inputs=inputs)
+                    inputs=inputs,
+                )
 
             with gr.Accordion("Parameters", open=False):
-                top_p = gr.Slider(minimum=-0, maximum=1.0, value=0.5, step=0.05, interactive=True,
-                                  label="Top-p (nucleus sampling)", )
-                temperature = gr.Slider(minimum=-0, maximum=5.0, value=0.5, step=0.1, interactive=True,
-                                        label="Temperature", )
+                top_p = gr.Slider(
+                    minimum=-0,
+                    maximum=1.0,
+                    value=0.5,
+                    step=0.05,
+                    interactive=True,
+                    label="Top-p (nucleus sampling)",
+                )
+                temperature = gr.Slider(
+                    minimum=-0,
+                    maximum=5.0,
+                    value=0.5,
+                    step=0.1,
+                    interactive=True,
+                    label="Temperature",
+                )
                 chat_counter = gr.Number(value=0, visible=True, precision=0)
 
-        inputs.submit(generate_response, [system_msg, inputs, top_p, temperature, chat_counter, chatbot, state],
-                      [chatbot, state, chat_counter], )
-        b1.click(generate_response, [system_msg, inputs, top_p, temperature, chat_counter, chatbot, state],
-                 [chatbot, state, chat_counter], )
+        inputs.submit(
+            generate_response,
+            [system_msg, inputs, top_p, temperature, chat_counter, chatbot, state],
+            [chatbot, state, chat_counter],
+        )
+        b1.click(
+            generate_response,
+            [system_msg, inputs, top_p, temperature, chat_counter, chatbot, state],
+            [chatbot, state, chat_counter],
+        )
 
         inputs.submit(set_visible_false, [], [system_msg])
         b1.click(set_visible_false, [], [system_msg])
@@ -243,7 +281,7 @@ def main():
         b1.click(reset_textbox, [], [inputs])
         inputs.submit(reset_textbox, [], [inputs])
 
-    demo.queue(max_size=99, concurrency_count=20).launch(debug=True)
+    demo.queue(max_size=99).launch(debug=True)
 
 
 if __name__ == "__main__":
